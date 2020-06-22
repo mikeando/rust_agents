@@ -1,5 +1,7 @@
+use std::collections::BTreeMap;
 
-#[derive(Debug, Copy, Clone)]
+
+#[derive(Debug, Copy, Clone, Ord, PartialOrd, PartialEq, Eq)]
 struct AgentId(u64);
 
 struct AliceState {}
@@ -111,18 +113,28 @@ impl Agent {
     }
 }
 
-struct GlobalOutbox {}
+struct GlobalOutbox {
+    messages:Vec<Message>
+}
 
 impl Outbox for GlobalOutbox {
     fn add_message(&mut self, message:Message) {
         println!("OUTBOX: Adding message {:?}", message);
+        self.messages.push(message);
     }
 }
 
 struct GlobalContext {}
 
 impl Context for GlobalContext {
-    fn resolve_id_from_name(&self, _: &str) -> AgentId { todo!() }
+    fn resolve_id_from_name(&self, name: &str) -> AgentId {
+        if name == "Alice" {
+            return AgentId(111)
+        } else if name == "Bob" {
+            return AgentId(222);
+        }
+        panic!("Unknown name");
+    }
 }
 
 fn main() {
@@ -148,16 +160,33 @@ fn main() {
         }
     ];
 
+    let mut agents: BTreeMap<AgentId, Agent> = BTreeMap::new();
+    let mut name_to_agent_id: BTreeMap<String, AgentId> = BTreeMap::new();
+    
+    for a in curstate {
+        name_to_agent_id.insert(a.common.name.clone(), a.common.id);
+        agents.insert(a.common.id, a);
+    }
+
     println!("Hello, world!");
 
     let context = GlobalContext{};
 
     for i in 1..10 {
-        let mut outbox = GlobalOutbox{};
-        curstate = curstate.into_iter().map(|a| a.act(&context, &mut outbox)).collect();
+        let mut outbox = GlobalOutbox{messages:vec![]};
+        agents = agents.into_iter().map(|(agent_id,agent)| (agent_id, agent.act(&context, &mut outbox))).collect();
+        
+        for (_agent_id, agent) in &mut agents {
+            agent.common.inbox.clear()
+        }
+
+        for message in outbox.messages {
+            agents.get_mut(&message.to).unwrap().common.inbox.push(message);
+        }
+
         println!("Step {}", i);
-        for a in &curstate {
-            println!("  {}  inbox={:?}", a.common.name, a.common.inbox)
+        for (_agent_id, agent) in &agents {
+            println!("  {} inbox={:?}", agent.common.name, agent.common.inbox)
         }
     }
 }
