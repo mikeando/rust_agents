@@ -4,10 +4,18 @@ use std::collections::BTreeMap;
 #[derive(Debug, Copy, Clone, Ord, PartialOrd, PartialEq, Eq)]
 struct AgentId(u64);
 
+#[derive(Debug)]
 struct AliceState {}
 
 impl AliceState {
     pub fn act(self, common:AgentCommon, outbox: &mut impl Outbox) -> (AgentCommon, AgentBody) {
+        let mut common = common;
+
+        let greetings: Vec<&Message> = common.inbox.iter().filter(|m| {if let MessageBody::Greeting(_) = m.body  {true} else {false}} ).collect();
+        if greetings.len() > 0 {
+            common.color = Color::Blue;
+        }
+
         (common, self.into())
     }
 }
@@ -18,6 +26,8 @@ impl Into<AgentBody> for AliceState {
     }
 }
 
+
+#[derive(Debug)]
 struct BobState {}
 
 
@@ -54,7 +64,7 @@ impl Into<AgentBody> for BobState {
 }
 
 
-
+#[derive(Debug)]
 enum AgentBody {
     Alice(AliceState),
     Bob(BobState),
@@ -86,13 +96,22 @@ struct Message {
     body:MessageBody,
 }
 
+#[derive(Debug)]
+enum Color {
+    Black,
+    Blue,
+}
+
+#[derive(Debug)]
 struct AgentCommon {
     id: AgentId,
     name: String,
     position: (i32, i32),
+    color: Color,
     inbox: Vec<Message>,
 }
 
+#[derive(Debug)]
 struct Agent {
     common: AgentCommon,
     body: AgentBody,
@@ -145,6 +164,7 @@ fn main() {
                 id:AgentId(111),
                 name: "Alice".to_string(),
                 position: (0,0),
+                color:Color::Black,
                 inbox: vec![],
             },
             body: AgentBody::Alice(AliceState{}),
@@ -154,6 +174,7 @@ fn main() {
                 id:AgentId(222),
                 name: "Bob".to_string(),
                 position: (3,0),
+                color:Color::Black,
                 inbox: vec![],
             },
             body:  AgentBody::Bob(BobState{}),
@@ -186,7 +207,7 @@ fn main() {
 
         println!("Step {}", i);
         for (_agent_id, agent) in &agents {
-            println!("  {} inbox={:?}", agent.common.name, agent.common.inbox)
+            println!("  {:?}", agent)
         }
     }
 }
