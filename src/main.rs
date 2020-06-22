@@ -1,4 +1,7 @@
 
+#[derive(Debug, Copy, Clone)]
+struct AgentId(u64);
+
 struct AliceState {}
 
 impl AliceState {
@@ -15,34 +18,29 @@ impl Into<AgentBody> for AliceState {
 
 struct BobState {}
 
-#[derive(Debug)]
-struct Greeting<'a> {
-    msg:&'a str
-}
+
 
 trait Outbox {
-    fn add_message(
-        &mut self,
-        to: &str,
-        message_type: &str,
-        body: MessageBody,
-    );
+    fn add_message(&mut self, message:Message);
 }
 
-#[derive(Debug)]
-enum MessageBody<'a> {
-    Greeting(Greeting<'a>)
+trait Context {
+    //TODO: This should be failable?
+    fn resolve_id_from_name(&self, name:&str) -> AgentId;
 }
+
 
 impl BobState {
-    pub fn act(self, common:AgentCommon, outbox: &mut impl Outbox) -> (AgentCommon, AgentBody) {
-        outbox.add_message (
-            "Alice",
-            "greeting",
-            MessageBody::Greeting(Greeting{
-              msg: "Hello, Alice."
+    pub fn act(self, common:AgentCommon, context:&impl Context, outbox: &mut impl Outbox) -> (AgentCommon, AgentBody) {
+        let alice_id = context.resolve_id_from_name("Alice");
+        let message = Message {
+            from:common.id,
+            to:alice_id,
+            body:MessageBody::Greeting(Greeting{
+                msg: "Hello, Alice.".to_string()
             })
-        );
+        };
+        outbox.add_message (message);
         (common, self.into())
     }
 }
@@ -53,24 +51,41 @@ impl Into<AgentBody> for BobState {
     }
 }
 
+
+
 enum AgentBody {
     Alice(AliceState),
     Bob(BobState),
 }
 
 impl AgentBody {
-    pub fn act(self, common:AgentCommon, outbox: &mut impl Outbox) -> (AgentCommon, AgentBody) {
+    pub fn act(self, common:AgentCommon, context:&impl Context, outbox: &mut impl Outbox) -> (AgentCommon, AgentBody) {
         match self {
             AgentBody::Alice(state) => state.act(common, outbox),
-            AgentBody::Bob(state) => state.act(common, outbox),
+            AgentBody::Bob(state) => state.act(common, context, outbox),
         }
     }
 }
 
 #[derive(Debug)]
-struct Message {}
+struct Greeting {
+    msg:String
+}
+
+#[derive(Debug)]
+enum MessageBody {
+    Greeting(Greeting)
+}
+
+#[derive(Debug)]
+struct Message {
+    to:AgentId,
+    from:AgentId,
+    body:MessageBody,
+}
 
 struct AgentCommon {
+    id: AgentId,
     name: String,
     position: (i32, i32),
     inbox: Vec<Message>,
@@ -82,10 +97,11 @@ struct Agent {
 }
 
 impl Agent {
-    pub fn act(self, outbox: &mut impl Outbox) -> Agent {
+    pub fn act(self, context:&impl Context, outbox: &mut impl Outbox) -> Agent {
         let mut agent = self;
         let (common, body): (AgentCommon, AgentBody) = agent.body.act(
             agent.common,
+            context,
             outbox,
         );
         Agent{
@@ -98,18 +114,15 @@ impl Agent {
 struct GlobalOutbox {}
 
 impl Outbox for GlobalOutbox {
-    fn add_message(
-        &mut self,
-        to: &str,
-        message_type: &str,
-        body: MessageBody,
-    ) {
-        println!("OUTBOX: Adding message from to:{} type:{}, body{:?}",
-                to,
-                message_type,
-                body,
-        )
+    fn add_message(&mut self, message:Message) {
+        println!("OUTBOX: Adding message {:?}", message);
     }
+}
+
+struct GlobalContext {}
+
+impl Context for GlobalContext {
+    fn resolve_id_from_name(&self, _: &str) -> AgentId { todo!() }
 }
 
 fn main() {
@@ -117,6 +130,7 @@ fn main() {
     let mut curstate:Vec<Agent> = vec![
         Agent{
             common:AgentCommon{ 
+                id:AgentId(111),
                 name: "Alice".to_string(),
                 position: (0,0),
                 inbox: vec![],
@@ -125,9 +139,10 @@ fn main() {
         },
         Agent{
             common:AgentCommon{
-            name: "Bob".to_string(),
-            position: (3,0),
-            inbox: vec![],
+                id:AgentId(222),
+                name: "Bob".to_string(),
+                position: (3,0),
+                inbox: vec![],
             },
             body:  AgentBody::Bob(BobState{}),
         }
@@ -135,10 +150,11 @@ fn main() {
 
     println!("Hello, world!");
 
+    let context = GlobalContext{};
 
     for i in 1..10 {
         let mut outbox = GlobalOutbox{};
-        curstate = curstate.into_iter().map(|a| a.act(&mut outbox)).collect();
+        curstate = curstate.into_iter().map(|a| a.act(&context, &mut outbox)).collect();
         println!("Step {}", i);
         for a in &curstate {
             println!("  {}  inbox={:?}", a.common.name, a.common.inbox)
