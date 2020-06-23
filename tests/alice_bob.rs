@@ -1,28 +1,10 @@
+extern crate rust_agents;
+
 use std::collections::BTreeMap;
+use rust_agents::behaviour::Behaviour;
 
+use rust_agents::utils::{BaseOp,AgentId, Color, ColorOp};
 
-trait Behaviour<STATE,CONTEXT> {
-    fn act(&self, state:STATE, context:&CONTEXT) -> STATE;
-}
-
-#[derive(Debug, Copy, Clone, Ord, PartialOrd, PartialEq, Eq)]
-struct AgentId(u64);
-
-trait BaseOp {
-    fn id(&self) -> AgentId;
-}
-
-#[derive(Debug)]
-enum Color {
-    Black,
-    Blue,
-    Red,
-}
-
-trait ColorOp {
-    fn get_color(&self) -> &Color;
-    fn set_color(&mut self, color:Color);
-}
 
 trait MessageOp {
     // TODO: Better to use an iterator than allocate?
@@ -270,7 +252,66 @@ impl NameResolver for GlobalContext {
     }
 }
 
-fn main() {
+fn print_agents(context: &GlobalContext) {
+    for (_agent_id, agent) in &context.agents {
+        println!("  {:?}", agent)
+    }
+}
+
+fn step_agents(context: &mut GlobalContext) {
+    let mut temp: BTreeMap<AgentId,Agent> = BTreeMap::new();
+    std::mem::swap(&mut temp, &mut context.agents);
+    context.agents = temp
+        .into_iter()
+        .map(|(agent_id, agent)| (agent_id, agent.act(context)))
+        .collect();
+}
+
+
+
+fn gather_messages(context: &mut GlobalContext) -> Vec<Message> {
+    let mut messages = vec![];
+    for (_agent_id, agent) in &mut context.agents {
+        messages.append(&mut agent.state.outbox);
+    }
+    messages
+}
+
+fn perform_system_actions(context:&mut GlobalContext) {
+
+    let mut system_actions = vec![];
+    for (_agent_id, agent) in &mut context.agents {
+        system_actions.append(&mut agent.state.system_outbox);
+    }
+
+    for action in system_actions {
+        println!("ACTION: {:?}", action);
+        match action.body {
+            SystemRequestBody::RemoveAgent(agent_id) => {
+                println!("{:?} requested removal of {:?}", action.from, agent_id);
+                let agent = context.agents.remove(&agent_id).unwrap();
+                context.name_to_agent_id.remove(&agent.state.name);
+            }
+        }
+    }
+}
+
+fn deliver_messages(context:&mut GlobalContext, messages:Vec<Message>) {
+    for (_agent_id, agent) in &mut context.agents {
+        agent.state.inbox.clear();
+    }
+
+    for message in messages {
+        println!("MESSAGE: {:?}", message);
+        match context.agents.get_mut(&message.to) {
+            Some(agent) => { agent.state.inbox.push(message); },
+            None => { println!("No agent {:?}", message.to); }
+        }
+    }
+}
+
+#[test]
+fn test_main() {
     let curstate: Vec<Agent> = vec![
         Agent {
             behaviour: AgentBehaviour::Alice(AliceBehaviour{}),
@@ -313,142 +354,11 @@ fn main() {
     for i in 0..10 {
 
         println!("Step {}", i);
-        for (_agent_id, agent) in &context.agents {
-            println!("  {:?}", agent)
-        }
+        print_agents(&context);
+        step_agents(&mut context);
 
-        let mut temp: BTreeMap<AgentId,Agent> = BTreeMap::new();
-        std::mem::swap(&mut temp, &mut context.agents);
-        context.agents = temp
-            .into_iter()
-            .map(|(agent_id, agent)| (agent_id, agent.act(&context)))
-            .collect();
-        
-        let mut system_actions = vec![];
-        let mut messages = vec![];
-        for (_agent_id, agent) in &mut context.agents {
-            agent.state.inbox.clear();
-            messages.append(&mut agent.state.outbox);
-            system_actions.append(&mut agent.state.system_outbox);
-        }
-
-        for action in system_actions {
-            println!("ACTION: {:?}", action);
-            match action.body {
-                SystemRequestBody::RemoveAgent(agent_id) => {
-                    println!("{:?} requested removal of {:?}", action.from, agent_id);
-                    let agent = context.agents.remove(&agent_id).unwrap();
-                    context.name_to_agent_id.remove(&agent.state.name);
-                }
-            }
-        }
-
-        for message in messages {
-            println!("MESSAGE: {:?}", message);
-            match context.agents.get_mut(&message.to) {
-                Some(agent) => { agent.state.inbox.push(message); },
-                None => { println!("No agent {:?}", message.to); }
-            }
-        }
-    }
-}
-
-#[cfg(test)]
-mod test {
-
-    use super::*;
-
-    struct TestAgentData {
-        id:AgentId,
-        color:Color,
-        inbox: Vec<Message>,
-        outbox: Vec<Message>,
-    }
-
-    impl TestAgentData {
-        pub fn new() -> Self {
-            TestAgentData {
-                id:AgentId(111),
-                color:Color::Black,
-                inbox:vec![],
-                outbox:vec![],
-            }
-        }
-    }
-
-
-    impl BaseOp for TestAgentData {
-        fn id(&self) -> AgentId {
-            self.id
-        }
-    }
-
-    impl ColorOp for TestAgentData {
-        fn get_color(&self) -> &Color {
-            &self.color
-        }
-        fn set_color(&mut self, color:Color) {
-            self.color = color;
-        }
-    }
-
-    impl MessageOp for TestAgentData {
-        fn inbox(&self) -> Vec<Message> {
-            self.inbox.clone()
-        }
-        fn send(&mut self, message:Message) {
-            self.outbox.push(message);
-        }
-    }
-
-    impl SystemOp for TestAgentData {
-        fn request(&mut self, request:SystemRequest) {
-            todo!()
-        }
-    }
-
-    struct TestContext {}
-
-    impl NameResolver for TestContext {
-        fn resolve_id_from_name(&self, name:&str) -> Option<AgentId> {
-            Some(AgentId(111))
-        }
-    }
-
-
-    #[test]
-    pub fn test_alice_unchanging() {
-
-        let alice_state = TestAgentData::new();
-        let context = TestContext{};
-        let alice_behaviour = AliceBehaviour{};
-
-        {
-            let _t: &dyn Behaviour<TestAgentData, TestContext> = &alice_behaviour;
-        }
-
-        let alice_state = alice_behaviour.act(alice_state, &context);
-    
-        // Should have done nothing
-        assert_eq!(alice_state.inbox, vec![]);
-        assert_eq!(alice_state.outbox, vec![]);
-    }
-
-    #[test]
-    pub fn test_bob_messages_alice() {
-
-        let bob_state = TestAgentData::new();
-        let context = TestContext{};
-        let bob_behaviour = BobBehaviour{};
-
-        {
-            let _t: &dyn Behaviour<TestAgentData, TestContext> = &bob_behaviour;
-        }
-
-        let bob_state = bob_behaviour.act(bob_state, &context);
-    
-        // Should have done nothing
-        assert_eq!(bob_state.inbox, vec![]);
-        assert_eq!(bob_state.outbox.len(), 1);
+        let messages = gather_messages(&mut context);
+        perform_system_actions(&mut context);
+        deliver_messages(&mut context, messages);
     }
 }
