@@ -251,14 +251,15 @@ impl Agent {
 }
 
 struct GlobalContext {
-    // let mut agents: BTreeMap<AgentId, Agent> = BTreeMap::new();
-    name_to_agent_id: BTreeMap<String, AgentId>
+    agents: BTreeMap<AgentId, Agent>,
+    name_to_agent_id: BTreeMap<String, AgentId>,
 }
 
 impl GlobalContext {
     fn new() -> Self {
-        GlobalContext { 
-            name_to_agent_id: BTreeMap::new()
+        GlobalContext {
+            agents: BTreeMap::new(),
+            name_to_agent_id: BTreeMap::new(),
         }
     }
 }
@@ -307,22 +308,25 @@ fn main() {
 
     let mut context = GlobalContext::new();
     context.name_to_agent_id = name_to_agent_id;
+    context.agents = agents;
 
     for i in 0..10 {
 
         println!("Step {}", i);
-        for (_agent_id, agent) in &agents {
+        for (_agent_id, agent) in &context.agents {
             println!("  {:?}", agent)
         }
 
-        agents = agents
+        let mut temp: BTreeMap<AgentId,Agent> = BTreeMap::new();
+        std::mem::swap(&mut temp, &mut context.agents);
+        context.agents = temp
             .into_iter()
             .map(|(agent_id, agent)| (agent_id, agent.act(&context)))
             .collect();
-
+        
         let mut system_actions = vec![];
         let mut messages = vec![];
-        for (_agent_id, agent) in &mut agents {
+        for (_agent_id, agent) in &mut context.agents {
             agent.state.inbox.clear();
             messages.append(&mut agent.state.outbox);
             system_actions.append(&mut agent.state.system_outbox);
@@ -333,7 +337,7 @@ fn main() {
             match action.body {
                 SystemRequestBody::RemoveAgent(agent_id) => {
                     println!("{:?} requested removal of {:?}", action.from, agent_id);
-                    let agent = agents.remove(&agent_id).unwrap();
+                    let agent = context.agents.remove(&agent_id).unwrap();
                     context.name_to_agent_id.remove(&agent.state.name);
                 }
             }
@@ -341,7 +345,7 @@ fn main() {
 
         for message in messages {
             println!("MESSAGE: {:?}", message);
-            match agents.get_mut(&message.to) {
+            match context.agents.get_mut(&message.to) {
                 Some(agent) => { agent.state.inbox.push(message); },
                 None => { println!("No agent {:?}", message.to); }
             }
