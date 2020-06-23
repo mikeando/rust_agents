@@ -1,53 +1,48 @@
 extern crate rust_agents;
 
-use std::collections::BTreeMap;
 use rust_agents::behaviour::Behaviour;
+use std::collections::BTreeMap;
 
-use rust_agents::utils::{BaseOp,AgentId, Color, ColorOp};
-
+use rust_agents::utils::{AgentId, BaseOp, Color, ColorOp};
 
 trait MessageOp {
     // TODO: Better to use an iterator than allocate?
     // The Message type should be only those that Alice can understand
     fn inbox(&self) -> Vec<Message>;
-    fn send(&mut self, message:Message) ;
+    fn send(&mut self, message: Message);
 }
 
 trait SystemOp {
-    fn request(&mut self, request:SystemRequest);
+    fn request(&mut self, request: SystemRequest);
 }
 
 trait NameResolver {
-    fn resolve_id_from_name(&self, name:&str) -> Option<AgentId>;
+    fn resolve_id_from_name(&self, name: &str) -> Option<AgentId>;
 }
 
 #[derive(Debug)]
 struct AliceBehaviour {}
 
-impl <STATE, CONTEXT> Behaviour<STATE,CONTEXT> for AliceBehaviour 
-where 
-    STATE:BaseOp + ColorOp + MessageOp + SystemOp 
+impl<STATE, CONTEXT> Behaviour<STATE, CONTEXT> for AliceBehaviour
+where
+    STATE: BaseOp + ColorOp + MessageOp + SystemOp,
 {
-    fn act(&self, state:STATE, _context:&CONTEXT) -> STATE {
+    fn act(&self, state: STATE, _context: &CONTEXT) -> STATE {
         let mut state = state;
 
         let inbox = state.inbox();
         let greetings: Vec<&Message> = inbox
-        .iter()
-        .filter(|m| {
-            if let MessageBody::Greeting(_) = m.body {
-                true
-            } else {
-                false
-            }
-        })
-        .collect();
+            .iter()
+            .filter(|m| match m.body {
+                MessageBody::Greeting(_) => true,
+            })
+            .collect();
 
         if greetings.len() > 0 {
             state.set_color(Color::Blue);
-            state.request(SystemRequest{
-                from:state.id(),
-                body: SystemRequestBody::RemoveAgent(state.id())
+            state.request(SystemRequest {
+                from: state.id(),
+                body: SystemRequestBody::RemoveAgent(state.id()),
             });
         }
 
@@ -69,12 +64,12 @@ where
 #[derive(Debug)]
 struct BobBehaviour {}
 
-impl <STATE, CONTEXT> Behaviour<STATE, CONTEXT> for BobBehaviour 
+impl<STATE, CONTEXT> Behaviour<STATE, CONTEXT> for BobBehaviour
 where
-    STATE:BaseOp + ColorOp + MessageOp + SystemOp,
+    STATE: BaseOp + ColorOp + MessageOp + SystemOp,
     CONTEXT: NameResolver,
 {
-    fn act(&self, state:STATE, context:&CONTEXT) -> STATE {
+    fn act(&self, state: STATE, context: &CONTEXT) -> STATE {
         let mut state = state;
         let alice_id = context.resolve_id_from_name("Alice");
         match alice_id {
@@ -87,10 +82,10 @@ where
                     }),
                 };
                 state.send(message);
-            },
+            }
             None => {
-                state.request(SystemRequest{
-                    from:state.id(),
+                state.request(SystemRequest {
+                    from: state.id(),
                     body: SystemRequestBody::RemoveAgent(state.id()),
                 });
             }
@@ -99,12 +94,8 @@ where
         let inbox = state.inbox();
         let greetings: Vec<&Message> = inbox
             .iter()
-            .filter(|m| {
-                if let MessageBody::Greeting(_) = m.body {
-                    true
-                } else {
-                    false
-                }
+            .filter(|m| match m.body {
+                MessageBody::Greeting(_) => true,
             })
             .collect();
 
@@ -137,7 +128,7 @@ impl ColorOp for AgentState {
     fn get_color(&self) -> &Color {
         &self.color
     }
-    fn set_color(&mut self, color:Color) {
+    fn set_color(&mut self, color: Color) {
         self.color = color
     }
 }
@@ -146,13 +137,13 @@ impl MessageOp for AgentState {
     fn inbox(&self) -> Vec<Message> {
         self.inbox.clone()
     }
-    fn send(&mut self, message:Message)  {
+    fn send(&mut self, message: Message) {
         self.outbox.push(message)
     }
 }
 
 impl SystemOp for AgentState {
-    fn request(&mut self, request:SystemRequest) {
+    fn request(&mut self, request: SystemRequest) {
         self.system_outbox.push(request);
     }
 }
@@ -164,13 +155,12 @@ struct Greeting {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct RemoveAgentMessage {
-    to_remove:AgentId
+    to_remove: AgentId,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum MessageBody {
     Greeting(Greeting),
-    RemoveAgentMessage(RemoveAgentMessage),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -182,7 +172,7 @@ struct Message {
 
 #[derive(Debug)]
 enum SystemRequestBody {
-    RemoveAgent(AgentId)
+    RemoveAgent(AgentId),
 }
 
 #[derive(Debug)]
@@ -191,44 +181,39 @@ struct SystemRequest {
     body: SystemRequestBody,
 }
 
-
 #[derive(Debug)]
 enum AgentBehaviour {
     Alice(AliceBehaviour),
     Bob(BobBehaviour),
 }
 
-
-
-impl <STATE,CONTEXT> Behaviour<STATE, CONTEXT> for AgentBehaviour 
+impl<STATE, CONTEXT> Behaviour<STATE, CONTEXT> for AgentBehaviour
 where
     STATE: BaseOp + ColorOp + MessageOp + SystemOp,
     CONTEXT: NameResolver,
 {
-    fn act(&self, state:STATE, context:&CONTEXT) -> STATE {
+    fn act(&self, state: STATE, context: &CONTEXT) -> STATE {
         match self {
-            AgentBehaviour::Alice(behaviour) => behaviour.act(state,context),
-            AgentBehaviour::Bob(behaviour) => behaviour.act(state,context),
+            AgentBehaviour::Alice(behaviour) => behaviour.act(state, context),
+            AgentBehaviour::Bob(behaviour) => behaviour.act(state, context),
         }
     }
 }
 
 #[derive(Debug)]
 struct Agent {
-    behaviour:AgentBehaviour,
-    state:AgentState,
+    behaviour: AgentBehaviour,
+    state: AgentState,
 }
 
 impl Agent {
-    fn  act<CONTEXT>(self, context:&CONTEXT) -> Self 
-    where CONTEXT: NameResolver
+    fn act<CONTEXT>(self, context: &CONTEXT) -> Self
+    where
+        CONTEXT: NameResolver,
     {
-        let Agent{behaviour, state} = self;
+        let Agent { behaviour, state } = self;
         let state = behaviour.act(state, context);
-        Agent{
-            behaviour,
-            state,
-        }
+        Agent { behaviour, state }
     }
 }
 
@@ -247,7 +232,7 @@ impl GlobalContext {
 }
 
 impl NameResolver for GlobalContext {
-    fn resolve_id_from_name(&self, name:&str) -> Option<AgentId> {
+    fn resolve_id_from_name(&self, name: &str) -> Option<AgentId> {
         self.name_to_agent_id.get(name).cloned()
     }
 }
@@ -259,15 +244,13 @@ fn print_agents(context: &GlobalContext) {
 }
 
 fn step_agents(context: &mut GlobalContext) {
-    let mut temp: BTreeMap<AgentId,Agent> = BTreeMap::new();
+    let mut temp: BTreeMap<AgentId, Agent> = BTreeMap::new();
     std::mem::swap(&mut temp, &mut context.agents);
     context.agents = temp
         .into_iter()
         .map(|(agent_id, agent)| (agent_id, agent.act(context)))
         .collect();
 }
-
-
 
 fn gather_messages(context: &mut GlobalContext) -> Vec<Message> {
     let mut messages = vec![];
@@ -277,8 +260,7 @@ fn gather_messages(context: &mut GlobalContext) -> Vec<Message> {
     messages
 }
 
-fn perform_system_actions(context:&mut GlobalContext) {
-
+fn perform_system_actions(context: &mut GlobalContext) {
     let mut system_actions = vec![];
     for (_agent_id, agent) in &mut context.agents {
         system_actions.append(&mut agent.state.system_outbox);
@@ -296,7 +278,7 @@ fn perform_system_actions(context:&mut GlobalContext) {
     }
 }
 
-fn deliver_messages(context:&mut GlobalContext, messages:Vec<Message>) {
+fn deliver_messages(context: &mut GlobalContext, messages: Vec<Message>) {
     for (_agent_id, agent) in &mut context.agents {
         agent.state.inbox.clear();
     }
@@ -304,8 +286,12 @@ fn deliver_messages(context:&mut GlobalContext, messages:Vec<Message>) {
     for message in messages {
         println!("MESSAGE: {:?}", message);
         match context.agents.get_mut(&message.to) {
-            Some(agent) => { agent.state.inbox.push(message); },
-            None => { println!("No agent {:?}", message.to); }
+            Some(agent) => {
+                agent.state.inbox.push(message);
+            }
+            None => {
+                println!("No agent {:?}", message.to);
+            }
         }
     }
 }
@@ -314,7 +300,7 @@ fn deliver_messages(context:&mut GlobalContext, messages:Vec<Message>) {
 fn test_main() {
     let curstate: Vec<Agent> = vec![
         Agent {
-            behaviour: AgentBehaviour::Alice(AliceBehaviour{}),
+            behaviour: AgentBehaviour::Alice(AliceBehaviour {}),
             state: AgentState {
                 id: AgentId(111),
                 name: "Alice".to_string(),
@@ -326,7 +312,7 @@ fn test_main() {
             },
         },
         Agent {
-            behaviour: AgentBehaviour::Bob(BobBehaviour{}),
+            behaviour: AgentBehaviour::Bob(BobBehaviour {}),
             state: AgentState {
                 id: AgentId(222),
                 name: "Bob".to_string(),
@@ -335,8 +321,8 @@ fn test_main() {
                 inbox: vec![],
                 outbox: vec![],
                 system_outbox: vec![],
-            }
-        }
+            },
+        },
     ];
 
     let mut agents: BTreeMap<AgentId, Agent> = BTreeMap::new();
@@ -352,7 +338,6 @@ fn test_main() {
     context.agents = agents;
 
     for i in 0..10 {
-
         println!("Step {}", i);
         print_agents(&context);
         step_agents(&mut context);

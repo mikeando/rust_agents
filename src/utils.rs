@@ -14,5 +14,5 @@ pub enum Color {
 
 pub trait ColorOp {
     fn get_color(&self) -> &Color;
-    fn set_color(&mut self, color:Color);
+    fn set_color(&mut self, color: Color);
 }
