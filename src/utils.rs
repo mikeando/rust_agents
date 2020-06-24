@@ -5,6 +5,10 @@ pub trait BaseOp {
     fn id(&self) -> AgentId;
 }
 
+pub trait System<T> {
+    fn apply_system_request(&mut self, action: T);
+}
+
 #[derive(Debug)]
 pub enum Color {
     Black,

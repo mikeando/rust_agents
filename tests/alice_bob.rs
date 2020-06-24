@@ -3,7 +3,7 @@ extern crate rust_agents;
 use rust_agents::behaviour::Behaviour;
 use std::collections::BTreeMap;
 
-use rust_agents::utils::{AgentId, BaseOp, Color, ColorOp};
+use rust_agents::utils::{AgentId, BaseOp, Color, ColorOp, System};
 
 trait MessageOp {
     // TODO: Better to use an iterator than allocate?
@@ -260,6 +260,19 @@ fn gather_messages(context: &mut GlobalContext) -> Vec<Message> {
     messages
 }
 
+impl System<SystemRequest> for GlobalContext {
+    fn apply_system_request(&mut self, request: SystemRequest) {
+        println!("ACTION: {:?}", request);
+        match request.body {
+            SystemRequestBody::RemoveAgent(agent_id) => {
+                println!("{:?} requested removal of {:?}", request.from, agent_id);
+                let agent = self.agents.remove(&agent_id).unwrap();
+                self.name_to_agent_id.remove(&agent.state.name);
+            }
+        }
+    }
+}
+
 fn perform_system_actions(context: &mut GlobalContext) {
     let mut system_actions = vec![];
     for (_agent_id, agent) in &mut context.agents {
@@ -267,14 +280,7 @@ fn perform_system_actions(context: &mut GlobalContext) {
     }
 
     for action in system_actions {
-        println!("ACTION: {:?}", action);
-        match action.body {
-            SystemRequestBody::RemoveAgent(agent_id) => {
-                println!("{:?} requested removal of {:?}", action.from, agent_id);
-                let agent = context.agents.remove(&agent_id).unwrap();
-                context.name_to_agent_id.remove(&agent.state.name);
-            }
-        }
+        context.apply_system_request(action);
     }
 }
 
