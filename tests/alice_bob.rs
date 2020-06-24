@@ -4,7 +4,7 @@ use rust_agents::behaviour::Behaviour;
 use std::collections::BTreeMap;
 
 use rust_agents::utils::{
-    perform_system_actions, AgentBase, AgentId, BaseOp, Color, ColorOp, System,
+    map_tree_leaves, perform_system_actions, AgentBase, AgentId, BaseOp, Color, ColorOp, System,
 };
 
 trait MessageOp {
@@ -22,15 +22,15 @@ trait NameResolver {
     fn resolve_id_from_name(&self, name: &str) -> Option<AgentId>;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct AliceBehaviour {}
 
 impl<STATE, CONTEXT> Behaviour<STATE, CONTEXT> for AliceBehaviour
 where
-    STATE: BaseOp + ColorOp + MessageOp + SystemOp,
+    STATE: BaseOp + ColorOp + MessageOp + SystemOp + Clone,
 {
-    fn act(&self, state: STATE, _context: &CONTEXT) -> STATE {
-        let mut state = state;
+    fn act(&self, state: &STATE, _context: &CONTEXT) -> STATE {
+        let mut state = state.clone();
 
         let inbox = state.inbox();
         let greetings: Vec<&Message> = inbox
@@ -63,16 +63,16 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct BobBehaviour {}
 
 impl<STATE, CONTEXT> Behaviour<STATE, CONTEXT> for BobBehaviour
 where
-    STATE: BaseOp + ColorOp + MessageOp + SystemOp,
+    STATE: BaseOp + ColorOp + MessageOp + SystemOp + Clone,
     CONTEXT: NameResolver,
 {
-    fn act(&self, state: STATE, context: &CONTEXT) -> STATE {
-        let mut state = state;
+    fn act(&self, state: &STATE, context: &CONTEXT) -> STATE {
+        let mut state = state.clone();
         let alice_id = context.resolve_id_from_name("Alice");
         match alice_id {
             Some(alice_id) => {
@@ -109,7 +109,7 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct AgentState {
     id: AgentId,
     name: String,
@@ -172,18 +172,18 @@ struct Message {
     body: MessageBody,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum SystemRequestBody {
     RemoveAgent(AgentId),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct SystemRequest {
     from: AgentId,
     body: SystemRequestBody,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum AgentBehaviour {
     Alice(AliceBehaviour),
     Bob(BobBehaviour),
@@ -191,10 +191,10 @@ enum AgentBehaviour {
 
 impl<STATE, CONTEXT> Behaviour<STATE, CONTEXT> for AgentBehaviour
 where
-    STATE: BaseOp + ColorOp + MessageOp + SystemOp,
+    STATE: BaseOp + ColorOp + MessageOp + SystemOp + Clone,
     CONTEXT: NameResolver,
 {
-    fn act(&self, state: STATE, context: &CONTEXT) -> STATE {
+    fn act(&self, state: &STATE, context: &CONTEXT) -> STATE {
         match self {
             AgentBehaviour::Alice(behaviour) => behaviour.act(state, context),
             AgentBehaviour::Bob(behaviour) => behaviour.act(state, context),
@@ -209,12 +209,12 @@ struct Agent {
 }
 
 impl Agent {
-    fn act<CONTEXT>(self, context: &CONTEXT) -> Self
+    fn act<CONTEXT>(&self, context: &CONTEXT) -> Self
     where
         CONTEXT: NameResolver,
     {
-        let Agent { behaviour, state } = self;
-        let state = behaviour.act(state, context);
+        let behaviour = self.behaviour.clone();
+        let state = behaviour.act(&self.state, context);
         Agent { behaviour, state }
     }
 }
@@ -252,12 +252,7 @@ fn print_agents(context: &GlobalContext) {
 }
 
 fn step_agents(context: &mut GlobalContext) {
-    let mut temp: BTreeMap<AgentId, Agent> = BTreeMap::new();
-    std::mem::swap(&mut temp, &mut context.agents);
-    context.agents = temp
-        .into_iter()
-        .map(|(agent_id, agent)| (agent_id, agent.act(context)))
-        .collect();
+    context.agents = map_tree_leaves(&context.agents, |agent| agent.act(context));
 }
 
 fn gather_messages(context: &mut GlobalContext) -> Vec<Message> {
@@ -280,7 +275,7 @@ impl System<SystemRequest> for GlobalContext {
             }
         }
     }
-    fn agents(&mut self) -> Vec<&mut Agent> {
+    fn agents_mut(&mut self) -> Vec<&mut Agent> {
         return self
             .agents
             .iter_mut()

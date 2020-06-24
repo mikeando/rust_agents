@@ -12,7 +12,7 @@ pub trait AgentBase<REQUEST> {
 pub trait System<REQUEST> {
     type AgentType;
     fn apply_system_request(&mut self, action: REQUEST);
-    fn agents(&mut self) -> Vec<&mut Self::AgentType>;
+    fn agents_mut(&mut self) -> Vec<&mut Self::AgentType>;
 }
 
 pub fn perform_system_actions<T, REQUEST>(context: &mut T)
@@ -23,7 +23,7 @@ where
     // We do this is two loops as we can't modify the
     // context while iterating over part of it.
     let mut system_actions = vec![];
-    for agent in &mut context.agents() {
+    for agent in &mut context.agents_mut() {
         system_actions.append(&mut agent.empty_system_outbox());
     }
 
@@ -32,7 +32,7 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Color {
     Black,
     Blue,
@@ -42,4 +42,14 @@ pub enum Color {
 pub trait ColorOp {
     fn get_color(&self) -> &Color;
     fn set_color(&mut self, color: Color);
+}
+
+use std::collections::BTreeMap;
+
+pub fn map_tree_leaves<A, B, C, F>(tree: &BTreeMap<A, B>, f: F) -> BTreeMap<A, C>
+where
+    F: Fn(&B) -> C,
+    A: Ord + Clone,
+{
+    tree.into_iter().map(|(k, v)| (k.clone(), f(v))).collect()
 }

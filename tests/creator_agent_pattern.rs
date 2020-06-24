@@ -3,7 +3,9 @@ extern crate rust_agents;
 use std::collections::BTreeMap;
 
 use rust_agents::behaviour::Behaviour;
-use rust_agents::utils::{perform_system_actions, AgentBase, AgentId, BaseOp, System};
+use rust_agents::utils::{
+    map_tree_leaves, perform_system_actions, AgentBase, AgentId, BaseOp, System,
+};
 
 trait ChildGenOp {
     type RequestType;
@@ -15,7 +17,7 @@ trait SystemOp {
     fn request(&mut self, request: Self::RequestType);
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct RemoveAgentRequest {
     from: AgentId,
     remove: AgentId,
@@ -25,31 +27,31 @@ struct CreatorBehaviour {}
 
 impl<STATE, CONTEXT, REQUEST> Behaviour<STATE, CONTEXT> for CreatorBehaviour
 where
-    STATE: BaseOp + ChildGenOp<RequestType = REQUEST> + SystemOp<RequestType = REQUEST>,
+    STATE: BaseOp + ChildGenOp<RequestType = REQUEST> + SystemOp<RequestType = REQUEST> + Clone,
     CONTEXT: ,
     REQUEST: From<RemoveAgentRequest>,
 {
-    fn act(&self, state: STATE, _context: &CONTEXT) -> STATE {
-        let mut state = state;
+    fn act(&self, state: &STATE, _context: &CONTEXT) -> STATE {
+        let mut new_state = state.clone();
         for child in state.child_requests() {
             //This should really be child.into()
-            state.request(child);
+            new_state.request(child);
         }
         let request = RemoveAgentRequest {
-            from: state.id(),
-            remove: state.id(),
+            from: new_state.id(),
+            remove: new_state.id(),
         };
-        state.request(request.into());
-        state
+        new_state.request(request.into());
+        new_state
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct CreateAgentRequest {
     new_id: AgentId,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum SystemRequest {
     RemoveAgent(RemoveAgentRequest),
     CreateAgent(CreateAgentRequest),
@@ -61,7 +63,7 @@ impl From<RemoveAgentRequest> for SystemRequest {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct CreatorState {
     id: AgentId,
     system_outbox: Vec<SystemRequest>,
@@ -90,12 +92,12 @@ impl BaseOp for CreatorState {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct ChildState {
     id: AgentId,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Agent {
     Creator(CreatorState),
     Child(ChildState),
@@ -121,10 +123,10 @@ impl Agent {
         }
     }
 
-    pub fn act<CONTEXT>(self, context: &CONTEXT) -> Self {
+    pub fn act<CONTEXT>(&self, context: &CONTEXT) -> Self {
         match self {
             Agent::Creator(state) => (CreatorBehaviour {}).act(state, context).into(),
-            Agent::Child(state) => state.into(), //No child behaviour yet.
+            Agent::Child(state) => state.clone().into(), //No child behaviour yet.
         }
     }
 }
@@ -157,12 +159,7 @@ fn print_agents(context: &GlobalContext) {
 }
 
 fn step_agents(context: &mut GlobalContext) {
-    let mut temp: BTreeMap<AgentId, Agent> = BTreeMap::new();
-    std::mem::swap(&mut temp, &mut context.agents);
-    context.agents = temp
-        .into_iter()
-        .map(|(agent_id, agent)| (agent_id, agent.act(context)))
-        .collect();
+    context.agents = map_tree_leaves(&context.agents, |agent| agent.act(context));
 }
 
 // fn gather_messages(context: &mut GlobalContext) -> Vec<Message> {
@@ -195,7 +192,7 @@ impl System<SystemRequest> for GlobalContext {
         }
     }
 
-    fn agents(&mut self) -> Vec<&mut Agent> {
+    fn agents_mut(&mut self) -> Vec<&mut Agent> {
         return self
             .agents
             .iter_mut()
@@ -229,7 +226,7 @@ fn test_use_creator_agent_pattern_no_loop() {
 
     println!("state={:?}", state);
 
-    let new_state = behaviour.act(state, &context);
+    let new_state = behaviour.act(&state, &context);
 
     println!("new_state={:?}", new_state);
 }
