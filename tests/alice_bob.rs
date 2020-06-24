@@ -3,7 +3,9 @@ extern crate rust_agents;
 use rust_agents::behaviour::Behaviour;
 use std::collections::BTreeMap;
 
-use rust_agents::utils::{AgentId, BaseOp, Color, ColorOp, System};
+use rust_agents::utils::{
+    perform_system_actions, AgentBase, AgentId, BaseOp, Color, ColorOp, System,
+};
 
 trait MessageOp {
     // TODO: Better to use an iterator than allocate?
@@ -217,6 +219,12 @@ impl Agent {
     }
 }
 
+impl AgentBase<SystemRequest> for Agent {
+    fn empty_system_outbox(&mut self) -> Vec<SystemRequest> {
+        self.state.system_outbox.drain(..).collect()
+    }
+}
+
 struct GlobalContext {
     agents: BTreeMap<AgentId, Agent>,
     name_to_agent_id: BTreeMap<String, AgentId>,
@@ -261,6 +269,7 @@ fn gather_messages(context: &mut GlobalContext) -> Vec<Message> {
 }
 
 impl System<SystemRequest> for GlobalContext {
+    type AgentType = Agent;
     fn apply_system_request(&mut self, request: SystemRequest) {
         println!("ACTION: {:?}", request);
         match request.body {
@@ -271,16 +280,12 @@ impl System<SystemRequest> for GlobalContext {
             }
         }
     }
-}
-
-fn perform_system_actions(context: &mut GlobalContext) {
-    let mut system_actions = vec![];
-    for (_agent_id, agent) in &mut context.agents {
-        system_actions.append(&mut agent.state.system_outbox);
-    }
-
-    for action in system_actions {
-        context.apply_system_request(action);
+    fn agents(&mut self) -> Vec<&mut Agent> {
+        return self
+            .agents
+            .iter_mut()
+            .map(|(_agent_id, agent)| agent)
+            .collect();
     }
 }
 

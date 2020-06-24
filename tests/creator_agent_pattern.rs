@@ -3,7 +3,7 @@ extern crate rust_agents;
 use std::collections::BTreeMap;
 
 use rust_agents::behaviour::Behaviour;
-use rust_agents::utils::{AgentId, BaseOp, System};
+use rust_agents::utils::{perform_system_actions, AgentBase, AgentId, BaseOp, System};
 
 trait ChildGenOp {
     type RequestType;
@@ -127,8 +127,10 @@ impl Agent {
             Agent::Child(state) => state.into(), //No child behaviour yet.
         }
     }
+}
 
-    pub fn empty_system_outbox(&mut self) -> Vec<SystemRequest> {
+impl AgentBase<SystemRequest> for Agent {
+    fn empty_system_outbox(&mut self) -> Vec<SystemRequest> {
         match self {
             Agent::Creator(state) => state.system_outbox.drain(..).collect(),
             Agent::Child(_) => vec![], //No child behaviour yet.
@@ -172,6 +174,8 @@ fn step_agents(context: &mut GlobalContext) {
 // }
 
 impl System<SystemRequest> for GlobalContext {
+    type AgentType = Agent;
+
     fn apply_system_request(&mut self, action: SystemRequest) {
         match action {
             SystemRequest::RemoveAgent(request) => {
@@ -190,18 +194,13 @@ impl System<SystemRequest> for GlobalContext {
             }
         }
     }
-}
 
-fn perform_system_actions(context: &mut GlobalContext) {
-    // We do this is two loops as we can't modify the
-    // context while iterating over part of it.
-    let mut system_actions = vec![];
-    for (_agent_id, agent) in &mut context.agents {
-        system_actions.append(&mut agent.empty_system_outbox());
-    }
-
-    for action in system_actions {
-        context.apply_system_request(action);
+    fn agents(&mut self) -> Vec<&mut Agent> {
+        return self
+            .agents
+            .iter_mut()
+            .map(|(_agent_id, agent)| agent)
+            .collect();
     }
 }
 
