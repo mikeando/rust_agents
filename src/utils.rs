@@ -51,5 +51,5 @@ where
     F: Fn(&B) -> C,
     A: Ord + Clone,
 {
-    tree.into_iter().map(|(k, v)| (k.clone(), f(v))).collect()
+    tree.iter().map(|(k, v)| (k.clone(), f(v))).collect()
 }
