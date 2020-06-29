@@ -44,6 +44,11 @@ pub trait ColorOp {
     fn set_color(&mut self, color: Color);
 }
 
+pub trait SystemOp {
+    type RequestType;
+    fn request(&mut self, request: Self::RequestType);
+}
+
 use std::collections::BTreeMap;
 
 pub fn map_tree_leaves<A, B, C, F>(tree: &BTreeMap<A, B>, f: F) -> BTreeMap<A, C>

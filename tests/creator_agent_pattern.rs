@@ -4,17 +4,12 @@ use std::collections::BTreeMap;
 
 use rust_agents::behaviour::Behaviour;
 use rust_agents::utils::{
-    map_tree_leaves, perform_system_actions, AgentBase, AgentId, BaseOp, System,
+    map_tree_leaves, perform_system_actions, AgentBase, AgentId, BaseOp, System, SystemOp,
 };
 
 trait ChildGenOp {
     type RequestType;
     fn child_requests(&self) -> Vec<Self::RequestType>;
-}
-
-trait SystemOp {
-    type RequestType;
-    fn request(&mut self, request: Self::RequestType);
 }
 
 #[derive(Debug, Clone)]
