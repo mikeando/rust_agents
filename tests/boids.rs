@@ -8,28 +8,12 @@ use rand::prelude::*;
 
 use rust_agents::behaviour::Behaviour;
 use rust_agents::chain::Chain;
+use rust_agents::remove_self::RemoveSelfBehaviour;
 
 use rust_agents::act_map_if::{act_map_if, TryIntoResult};
 use rust_agents::utils::{
     map_tree_leaves, perform_system_actions, AgentBase, AgentId, BaseOp, System, SystemOp,
 };
-
-struct RemoveSelfBehaviour {}
-
-#[derive(Clone, Debug)]
-struct RemoveAgent(AgentId);
-
-impl<STATE, CONTEXT, REQUEST> Behaviour<STATE, CONTEXT> for RemoveSelfBehaviour
-where
-    STATE: Clone + SystemOp<RequestType = REQUEST> + BaseOp,
-    REQUEST: From<RemoveAgent>,
-{
-    fn act(&self, state: &STATE, _context: &CONTEXT) -> STATE {
-        let mut state = state.clone();
-        state.request(RemoveAgent(state.id()).into());
-        state
-    }
-}
 
 struct FlockCreator {}
 
