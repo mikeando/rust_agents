@@ -8,7 +8,7 @@ use rand::prelude::*;
 
 use rust_agents::behaviour::Behaviour;
 use rust_agents::chain::Chain;
-use rust_agents::remove_self::RemoveSelfBehaviour;
+use rust_agents::remove_self::{RemoveAgent, RemoveSelfBehaviour};
 
 use rust_agents::act_map_if::{act_map_if, TryIntoResult};
 use rust_agents::utils::{

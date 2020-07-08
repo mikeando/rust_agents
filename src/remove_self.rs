@@ -1,10 +1,10 @@
 use crate::behaviour::Behaviour;
 use crate::utils::{AgentId, BaseOp, SystemOp};
 
-struct RemoveSelfBehaviour {}
-
 #[derive(Clone, Debug)]
-struct RemoveAgent(AgentId);
+pub struct RemoveAgent(pub AgentId);
+
+pub struct RemoveSelfBehaviour {}
 
 impl<STATE, CONTEXT, REQUEST> Behaviour<STATE, CONTEXT> for RemoveSelfBehaviour
 where
