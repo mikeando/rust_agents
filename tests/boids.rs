@@ -15,6 +15,13 @@ use rust_agents::utils::{
     map_tree_leaves, perform_system_actions, AgentBase, AgentId, BaseOp, System, SystemOp,
 };
 
+#[derive(Clone, Debug)]
+struct CreateAgent {
+    position: Vector3<f32>,
+    direction: Vector3<f32>,
+    rgb: (u8, u8, u8),
+}
+
 struct FlockCreator {}
 
 impl FlockCreator {
@@ -30,13 +37,6 @@ impl FlockCreator {
     fn random_color(rand: &mut impl Rng) -> (u8, u8, u8) {
         (rand.gen(), rand.gen(), rand.gen())
     }
-}
-
-#[derive(Clone, Debug)]
-struct CreateAgent {
-    position: Vector3<f32>,
-    direction: Vector3<f32>,
-    rgb: (u8, u8, u8),
 }
 
 impl<STATE, CONTEXT, REQUEST> Behaviour<STATE, CONTEXT> for FlockCreator
@@ -69,18 +69,12 @@ where
     }
 }
 
-struct FlockBehaviour {}
-
 #[derive(Clone)]
 struct FlockGlobals {
     cohesion: f32,
     inertia: f32,
     alignment: f32,
     preferred_flock_size: f32,
-}
-
-trait FlockGlobalContext {
-    fn globals(&self) -> FlockGlobals;
 }
 
 trait PositionAndDirectionOp {
@@ -95,6 +89,12 @@ trait NeighborhoodContext<STATE> {
     where
         F: FnMut(&STATE, &STATE);
 }
+
+trait FlockGlobalContext {
+    fn globals(&self) -> FlockGlobals;
+}
+
+struct FlockBehaviour {}
 
 impl<STATE, CONTEXT> Behaviour<STATE, CONTEXT> for FlockBehaviour
 where
@@ -153,11 +153,6 @@ where
         state
     }
 }
-#[derive(Clone, Debug)]
-struct Creator {
-    id: AgentId,
-    system_outbox: Vec<SystemRequest>,
-}
 
 #[derive(Clone, Debug)]
 enum SystemRequest {
@@ -175,6 +170,12 @@ impl From<RemoveAgent> for SystemRequest {
     fn from(request: RemoveAgent) -> SystemRequest {
         SystemRequest::RemoveAgent(request)
     }
+}
+
+#[derive(Clone, Debug)]
+struct Creator {
+    id: AgentId,
+    system_outbox: Vec<SystemRequest>,
 }
 
 impl SystemOp for Creator {
