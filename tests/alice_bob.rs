@@ -7,24 +7,29 @@ use rust_agents::utils::{
     map_tree_leaves, perform_system_actions, AgentBase, AgentId, BaseOp, Color, ColorOp, System,
 };
 
-trait MessageOp {
-    // TODO: Better to use an iterator than allocate?
-    // The Message type should be only those that Alice can understand
-    fn inbox(&self) -> Vec<Message>;
-    fn send(&mut self, message: Message);
-}
-
-trait SystemOp {
-    fn request(&mut self, request: SystemRequest);
-}
-
-trait NameResolver {
-    fn resolve_id_from_name(&self, name: &str) -> Option<AgentId>;
-}
-
+/// Stateless behaviour for Alice.
 #[derive(Debug, Clone)]
 struct AliceBehaviour {}
 
+/// Alice's behaviour implements the Behaviour trait.
+///
+/// Alice checks if she has received a greeting, and if so turns blue
+/// and removes herself from the simulation in the next time-step.
+/// she also replies to each message with a greeting of
+/// 'Go away, I’m social-distancing!'.
+///
+/// We want the AliceBehaviour to be able to work on any
+/// STATE and CONTEXT where the above set of operations makes
+/// sense.
+///
+/// We cont actually use the any context so that has no trait restrictions.
+//
+/// However the state (which includes the inbox) has the following requirements:
+/// * we must be able to clone the state to get the next state so that the new
+///   state is completely independent of the old state - this means we must support Clone
+/// * get incoming messages and sending messages - must support MessageOp trait.
+/// * set the agents colour - ColorOp
+/// * remove its self from simulation - SystemOp
 impl<STATE, CONTEXT> Behaviour<STATE, CONTEXT> for AliceBehaviour
 where
     STATE: BaseOp + ColorOp + MessageOp + SystemOp + Clone,
@@ -63,9 +68,25 @@ where
     }
 }
 
+/// Stateless behaviour for Bob.
 #[derive(Debug, Clone)]
 struct BobBehaviour {}
 
+/// Bob's behaviour implements the Behaviour trait.
+///
+/// Bob sends alice a message saying 'Hello, Alice'.
+/// Then waits for a response and turns red upon receiving one.
+///
+/// As for the AliceBehaviour we want this to work on any suitable
+/// STATE and CONTEXT pairs.
+///
+/// In Bob's case we do need a way to find Alice - in this case that
+/// means we want the CONTEXT to support a way to get an AgentId from
+/// a name - so we require CONTEXT to implement a new NameResolver trait.
+///
+/// Bob also needs to change colour, receive messages and remove himsefl
+/// from the simulation, meaning we require the STATE to implement
+/// ColorOpt, MessageOp, SystemOp as well as the "usual" BaseOp and Clone.
 impl<STATE, CONTEXT> Behaviour<STATE, CONTEXT> for BobBehaviour
 where
     STATE: BaseOp + ColorOp + MessageOp + SystemOp + Clone,
@@ -109,6 +130,25 @@ where
     }
 }
 
+/// A trait for states that send and receive messages
+/// In this case hardcoded to receive alice_bob::Message
+trait MessageOp {
+    // TODO: Better to use an iterator than allocate?
+    // The Message type should be only those that Alice can understand
+    fn inbox(&self) -> Vec<Message>;
+    fn send(&mut self, message: Message);
+}
+
+/// A trait for states that can respond to SystemRequest messages
+trait SystemOp {
+    fn request(&mut self, request: SystemRequest);
+}
+
+trait NameResolver {
+    fn resolve_id_from_name(&self, name: &str) -> Option<AgentId>;
+}
+
+/// The state for an Alice or Bob Agent
 #[derive(Debug, Clone)]
 struct AgentState {
     id: AgentId,
@@ -183,6 +223,11 @@ struct SystemRequest {
     body: SystemRequestBody,
 }
 
+/// A single unified behaviour that covers both Alice and Bob.
+///
+/// rust_agents only uses a single behaviour for all agents,
+/// using an enum for these allows us to switch between the
+/// two implementations for each agent.
 #[derive(Debug, Clone)]
 enum AgentBehaviour {
     Alice(AliceBehaviour),
@@ -202,6 +247,10 @@ where
     }
 }
 
+/// An agent is a combination of its behaviour and its state.
+///
+/// In general the behaviour is stateless, does not change, and may be shared between more than one
+/// agent, while the state is changed every timestep.
 #[derive(Debug)]
 struct Agent {
     behaviour: AgentBehaviour,
@@ -219,11 +268,31 @@ impl Agent {
     }
 }
 
+/// At the end of each timestep we get any system requests
+/// for each acgent. To allow us to do this Agent must support
+/// the AgentBase trait. (But since the available SystemRequests
+/// might vary from simulation type to simulation type the
+/// AgentBase is generic on the request type. - for Alice and Bob
+/// the only simulation system level request is to remove them selves,
+/// but in more complex systems it may involve spawning new agents)
 impl AgentBase<SystemRequest> for Agent {
     fn empty_system_outbox(&mut self) -> Vec<SystemRequest> {
         self.state.system_outbox.drain(..).collect()
     }
 }
+
+/// For Alice and Bob we have simple maps form ids to agents,
+/// and names to ids.
+///
+/// This is overly generic for a system which is only going to
+/// be used for Alice and Bob, something like
+///
+/// struct GlobalContext {
+///     alice: Option<Agent>
+///     bob: Option<Agent>
+/// }
+///
+/// would suffice.
 
 struct GlobalContext {
     agents: BTreeMap<AgentId, Agent>,
