@@ -23,12 +23,6 @@ pub enum TryIntoResult<OK, FAILED> {
     Failed(FAILED),
 }
 
-pub trait TryInto<A> {
-    fn try_into() -> TryIntoResult<A, Self>
-    where
-        Self: std::marker::Sized;
-}
-
 pub struct ActMapIf<A, F> {
     a: A,
     f: F,
