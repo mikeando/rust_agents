@@ -333,6 +333,19 @@ impl AgentBase<SystemRequest> for Agent {
     }
 }
 
+fn print_agents(context: &Context) {
+    for (_agent_id, agent) in &context.agents {
+        println!("  {:?}", agent)
+    }
+}
+
+fn step_agents<B>(behaviour: &B, context: &mut Context)
+where
+    B: Behaviour<Agent, Context>,
+{
+    context.agents = map_tree_leaves(&context.agents, |agent| behaviour.act(agent, context));
+}
+
 #[test]
 fn test_remove_self() {
     let remove_self = RemoveSelfBehaviour {};
@@ -404,19 +417,6 @@ fn test_main() {
         rgb: (1, 2, 3),
     });
     create_or_flock.act(&mut state, &context);
-}
-
-fn print_agents(context: &Context) {
-    for (_agent_id, agent) in &context.agents {
-        println!("  {:?}", agent)
-    }
-}
-
-fn step_agents<B>(behaviour: &B, context: &mut Context)
-where
-    B: Behaviour<Agent, Context>,
-{
-    context.agents = map_tree_leaves(&context.agents, |agent| behaviour.act(agent, context));
 }
 
 #[test]
