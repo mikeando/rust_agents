@@ -6,9 +6,9 @@ use cgmath::prelude::*;
 use cgmath::Vector3;
 use rand::prelude::*;
 
-use rust_agents::behaviour::Behaviour;
 use rust_agents::chain::Chain;
 use rust_agents::remove_self::{RemoveAgent, RemoveSelfBehaviour};
+use rust_agents::{behaviour::Behaviour, map_context::MapContext, utils::step_agents};
 
 use rust_agents::act_map_if::{act_map_if, TryIntoResult};
 use rust_agents::utils::{
@@ -339,11 +339,14 @@ fn print_agents(context: &Context) {
     }
 }
 
-fn step_agents<B>(behaviour: &B, context: &mut Context)
-where
-    B: Behaviour<Agent, Context>,
-{
-    context.agents = map_tree_leaves(&context.agents, |agent| behaviour.act(agent, context));
+impl MapContext<Agent> for Context {
+    fn set_agents(&mut self, agents: BTreeMap<AgentId, Agent>) {
+        self.agents = agents;
+    }
+
+    fn agents(&self) -> &BTreeMap<AgentId, Agent> {
+        &self.agents
+    }
 }
 
 #[test]

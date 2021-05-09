@@ -51,10 +51,23 @@ pub trait SystemOp {
 
 use std::collections::BTreeMap;
 
+use crate::{behaviour::Behaviour, map_context::MapContext};
+
 pub fn map_tree_leaves<A, B, C, F>(tree: &BTreeMap<A, B>, f: F) -> BTreeMap<A, C>
 where
     F: Fn(&B) -> C,
     A: Ord + Clone,
 {
     tree.iter().map(|(k, v)| (k.clone(), f(v))).collect()
+}
+
+pub fn step_agents<B, AGENT, CONTEXT>(behaviour: &B, context: &mut CONTEXT)
+where
+    B: Behaviour<AGENT, CONTEXT>,
+    AGENT: ,
+    CONTEXT: MapContext<AGENT>,
+{
+    context.set_agents(map_tree_leaves(&context.agents(), |agent| {
+        behaviour.act(agent, context)
+    }));
 }
