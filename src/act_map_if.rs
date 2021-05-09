@@ -1,3 +1,21 @@
+/// Implements a Behaviour that is only applied to a state
+/// if it matches some condition.
+///
+/// This is usually accessed via `act_map_if` not the
+/// `ActMapIf` struct directly.
+///
+/// ## Limitations
+/// Currently the child state must be directly
+/// convertible back to the main state type. This works nicely
+/// when the main state type is an enum, but is not perfect in the
+/// cases where it is more complex.
+///
+/// Also the state is cloned unconditionally even when the state is
+/// not going to be applied.
+///
+/// These could both be avoided by making F take a reference and return
+/// an Optional on which we then apply the child behaviour and finally
+/// recombine into the original state.
 use crate::behaviour::Behaviour;
 
 pub enum TryIntoResult<OK, FAILED> {
@@ -16,12 +34,12 @@ pub struct ActMapIf<A, F> {
     f: F,
 }
 
-impl<A, F, NEWSTATE, STATE, CONTEXT> Behaviour<STATE, CONTEXT> for ActMapIf<A, F>
+impl<A, F, CHILD_STATE, STATE, CONTEXT> Behaviour<STATE, CONTEXT> for ActMapIf<A, F>
 where
     STATE: Clone,
-    F: Fn(STATE) -> TryIntoResult<NEWSTATE, STATE>,
-    A: Behaviour<NEWSTATE, CONTEXT>,
-    NEWSTATE: Into<STATE>,
+    F: Fn(STATE) -> TryIntoResult<CHILD_STATE, STATE>,
+    A: Behaviour<CHILD_STATE, CONTEXT>,
+    CHILD_STATE: Into<STATE>,
 {
     fn act(&self, state: &STATE, context: &CONTEXT) -> STATE {
         let fs = (self.f)(state.clone());

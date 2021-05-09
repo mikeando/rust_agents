@@ -1,3 +1,8 @@
+/// Creates a composite behaviour that applies the first behaviour and then
+/// a second behaviour to the result of that first behaviour.
+///
+/// We don't use a Vec<Box<dyn Behaviour<STATE,CONTEXT>>> or similar as that
+/// would incur a dynamic dispatch / virtual call overhead.
 use crate::behaviour::Behaviour;
 
 pub struct Chain<A, B> {

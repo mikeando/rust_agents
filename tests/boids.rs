@@ -421,17 +421,19 @@ where
 
 #[test]
 fn test_full_example() {
+    // Create a composite behaviour which creates the flock then removes itself
     let single_creator_behaviour = Chain::chain(FlockCreator {}, RemoveSelfBehaviour {});
-    let flock_behaviour = FlockBehaviour {};
 
+    // The base behaviour which behaves differently if the agent is a Creator or a Boid.
     let create_or_flock = Chain::chain(
         act_map_if(
             |agent: Agent| agent.try_into_creator(),
             single_creator_behaviour,
         ),
-        act_map_if(|agent: Agent| agent.try_into_boid(), flock_behaviour),
+        act_map_if(|agent: Agent| agent.try_into_boid(), FlockBehaviour {}),
     );
 
+    // Initial context with just a single creator object.
     let mut context = Context::new();
     context.agents.insert(
         AgentId(0),
